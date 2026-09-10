@@ -17,18 +17,18 @@ class CustomDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
-      value: value,
+      initialValue: value,
       onChanged: onChanged,
       decoration: InputDecoration(
         labelText: label,
         filled: true,
-        fillColor: Colors.grey.shade100,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+        fillColor: const Color(0xFFE0E0E0),
+        border: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
           borderSide: BorderSide.none,
         ),
       ),
-      icon: Icon(Icons.keyboard_arrow_down_rounded),
+      icon: const Icon(Icons.keyboard_arrow_down_rounded),
       items: items
           .map((item) => DropdownMenuItem(
                 value: item,

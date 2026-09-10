@@ -37,6 +37,12 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
 }
 
 flutter {

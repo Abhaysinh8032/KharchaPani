@@ -3,6 +3,8 @@ import '../widgets/custom_dropdown.dart';
 import '../widgets/custom_textfield.dart';
 
 class ExpensePage extends StatefulWidget {
+  const ExpensePage({super.key});
+
   @override
   State<ExpensePage> createState() => _ExpensePageState();
 }
@@ -27,21 +29,23 @@ class _ExpensePageState extends State<ExpensePage> {
       lastDate: DateTime(2100),
     );
 
-    if (date != null) {
+    if (date != null && mounted) {
       TimeOfDay? time = await showTimePicker(
         context: context,
         initialTime: TimeOfDay.now(),
       );
 
-      setState(() {
-        selectedDate = DateTime(
-          date.year,
-          date.month,
-          date.day,
-          time?.hour ?? 0,
-          time?.minute ?? 0,
-        );
-      });
+      if (time != null && mounted) {
+        setState(() {
+          selectedDate = DateTime(
+            date.year,
+            date.month,
+            date.day,
+            time.hour,
+            time.minute,
+          );
+        });
+      }
     }
   }
 
@@ -50,7 +54,7 @@ class _ExpensePageState extends State<ExpensePage> {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        title: Text("Add Transaction"),
+        title: const Text("Add Transaction"),
         centerTitle: true,
         elevation: 0,
       ),
@@ -64,7 +68,7 @@ class _ExpensePageState extends State<ExpensePage> {
               label: "Transaction Type",
               onChanged: (val) => setState(() => type = val!),
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
 
             CustomDropdown(
               value: account,
@@ -72,7 +76,7 @@ class _ExpensePageState extends State<ExpensePage> {
               label: "Account",
               onChanged: (val) => setState(() => account = val!),
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
 
             CustomDropdown(
               value: category,
@@ -80,17 +84,17 @@ class _ExpensePageState extends State<ExpensePage> {
               label: "Category",
               onChanged: (val) => setState(() => category = val!),
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
 
             CustomTextField(
               controller: amountController,
               label: "Amount",
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
 
             // Date UI
             Container(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
               decoration: BoxDecoration(
                 color: Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(12),
@@ -100,17 +104,17 @@ class _ExpensePageState extends State<ExpensePage> {
                 children: [
                   Text(
                     "${selectedDate.toLocal()}".split('.')[0],
-                    style: TextStyle(fontSize: 14),
+                    style: const TextStyle(fontSize: 14),
                   ),
                   IconButton(
-                    icon: Icon(Icons.calendar_today),
+                    icon: const Icon(Icons.calendar_today),
                     onPressed: pickDateTime,
                   )
                 ],
               ),
             ),
 
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
             // Save Button
             SizedBox(
@@ -118,12 +122,12 @@ class _ExpensePageState extends State<ExpensePage> {
               child: ElevatedButton(
                 onPressed: () {},
                 style: ElevatedButton.styleFrom(
-                  padding: EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: Text("Save"),
+                child: const Text("Save"),
               ),
             )
           ],
