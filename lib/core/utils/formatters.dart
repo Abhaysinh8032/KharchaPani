@@ -2,24 +2,29 @@
 import 'package:intl/intl.dart';
 
 class Formatters {
-  static final _currency = NumberFormat.currency(
-    symbol: '₹',
-    decimalDigits: 2,
-    locale: 'en_IN',
-  );
+  static String currency(double amount) =>
+      '₹${NumberFormat('#,##,##0.00', 'en_IN').format(amount)}';
 
-  static final _currencyCompact = NumberFormat.compactCurrency(
-    symbol: '₹',
-    locale: 'en_IN',
-  );
-
-  static String currency(double amount) => _currency.format(amount);
-  static String currencyCompact(double amount) => _currencyCompact.format(amount);
-
-  static String date(DateTime d) => DateFormat('MMM dd, yyyy').format(d);
-  static String dateShort(DateTime d) => DateFormat('dd MMM').format(d);
   static String monthYear(DateTime d) => DateFormat('MMMM, yyyy').format(d);
   static String dayWeekday(DateTime d) => DateFormat('MMM d, EEEE').format(d);
-  static String time(DateTime d) => DateFormat('hh:mm a').format(d);
+
+  /// dd-MM-yyyy HH:mm  — matches export/import format
+  static String csvDateTime(DateTime d) =>
+      '${d.day.toString().padLeft(2,'0')}-'
+      '${d.month.toString().padLeft(2,'0')}-'
+      '${d.year} '
+      '${d.hour.toString().padLeft(2,'0')}:'
+      '${d.minute.toString().padLeft(2,'0')}';
+
+  /// yyyy-MM-dd HH:mm:ss — matches Excel export TIME column
+  static String excelDateTime(DateTime d) =>
+      DateFormat('yyyy-MM-dd HH:mm:ss').format(d);
+
   static String excelDate(DateTime d) => DateFormat('dd-MM-yyyy').format(d);
+
+  static String monthName(int m) {
+    const n = ['Jan','Feb','Mar','Apr','May','Jun',
+                'Jul','Aug','Sep','Oct','Nov','Dec'];
+    return n[m - 1];
+  }
 }

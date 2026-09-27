@@ -10,47 +10,29 @@ class Account {
   final DateTime createdAt;
 
   const Account({
-    required this.id,
-    required this.name,
-    required this.icon,
-    required this.color,
-    required this.balance,
-    required this.createdAt,
+    required this.id, required this.name, required this.icon,
+    required this.color, required this.balance, required this.createdAt,
   });
 
-  Account copyWith({
-    String? id,
-    String? name,
-    String? icon,
-    Color? color,
-    double? balance,
-    DateTime? createdAt,
-  }) {
-    return Account(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      icon: icon ?? this.icon,
-      color: color ?? this.color,
-      balance: balance ?? this.balance,
-      createdAt: createdAt ?? this.createdAt,
-    );
-  }
+  Account copyWith({String? name, String? icon, Color? color, double? balance}) =>
+      Account(
+        id: id, createdAt: createdAt,
+        name: name ?? this.name,
+        icon: icon ?? this.icon,
+        color: color ?? this.color,
+        balance: balance ?? this.balance,
+      );
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'name': name,
-        'icon': icon,
-        'color': color.toARGB32(),
-        'balance': balance,
-        'created_at': createdAt.toIso8601String(),
-      };
+    'id': id, 'name': name, 'icon': icon,
+    'color': color.toARGB32(), 'balance': balance,
+    'created_at': createdAt.toIso8601String(),
+  };
 
-  factory Account.fromMap(Map<String, dynamic> map) => Account(
-        id: map['id'],
-        name: map['name'],
-        icon: map['icon'],
-        color: Color(map['color']),
-        balance: map['balance'],
-        createdAt: DateTime.parse(map['created_at']),
-      );
+  factory Account.fromMap(Map<String, dynamic> m) => Account(
+    id: m['id'], name: m['name'], icon: m['icon'],
+    color: Color(m['color'] as int),
+    balance: (m['balance'] as num).toDouble(),
+    createdAt: DateTime.parse(m['created_at']),
+  );
 }

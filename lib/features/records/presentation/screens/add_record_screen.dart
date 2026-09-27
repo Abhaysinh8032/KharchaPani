@@ -4,749 +4,386 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/category_icons.dart';
 import '../../../accounts/data/account_model.dart';
-import '../../../accounts/presentation/providers/account_providers.dart';
+import '../../../accounts/data/account_repository.dart';
 import '../../../categories/data/category_model.dart';
-import '../../../categories/presentation/providers/category_providers.dart';
+import '../../../categories/data/category_repository.dart';
 import '../../data/record_model.dart';
 import '../providers/record_providers.dart';
 
 class AddRecordScreen extends ConsumerStatefulWidget {
-  final FinancialRecord? record;
-
-  const AddRecordScreen({super.key, this.record});
-
+  const AddRecordScreen({super.key});
   @override
   ConsumerState<AddRecordScreen> createState() => _AddRecordScreenState();
 }
 
 class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
-  RecordType _type = RecordType.expense;
-  Account? _selectedAccount;
-  Account? _toAccount;
-  Category? _selectedCategory;
-  String _amountStr = '0';
-  String _operator = '';
-  String _previousValue = '0';
-  final _notesController = TextEditingController();
-  DateTime _date = DateTime.now();
-  bool _isSaving = false;
+  RecordType _type      = RecordType.expense;
+  Account?   _account;
+  Account?   _toAccount;
+  Category?  _category;
+  String     _amtStr   = '0';
+  DateTime   _date     = DateTime.now();
+  bool       _saving   = false;
+  final _notesCtrl     = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
-    if (widget.record != null) {
-      final record = widget.record!;
-      _type = record.type;
-      _amountStr = record.amount.toString();
-      _date = record.date;
-      _notesController.text = record.notes ?? '';
-      // Load associated data asynchronously
-      WidgetsBinding.instance.addPostFrameCallback((_) => _loadInitialData());
-    }
-  }
+  double get _amount => double.tryParse(_amtStr) ?? 0;
 
-  void _loadInitialData() async {
-    if (widget.record == null) return;
-    final record = widget.record!;
-    final accountRepo = ref.read(accountRepositoryProvider);
-    final catRepo = ref.read(categoryRepositoryProvider);
-
-    // Load account
-    final acc = await accountRepo.getById(record.accountId);
-    if (acc != null && mounted) {
-      setState(() => _selectedAccount = acc);
-    }
-
-    // Load to account for transfers
-    if (record.toAccountId != null) {
-      final toAcc = await accountRepo.getById(record.toAccountId!);
-      if (toAcc != null && mounted) {
-        setState(() => _toAccount = toAcc);
-      }
-    }
-
-    // Load category
-    if (record.categoryId != null) {
-      final allCats = _type == RecordType.income
-          ? await catRepo.getByType(CategoryType.income)
-          : await catRepo.getByType(CategoryType.expense);
-      try {
-        final cat = allCats.firstWhere(
-          (c) => c.id == record.categoryId,
-        );
-        if (mounted) {
-          setState(() => _selectedCategory = cat);
-        }
-      } catch (_) {
-        // Category not found
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _notesController.dispose();
-    super.dispose();
-  }
-
-  double get _amount => double.tryParse(_amountStr) ?? 0;
-
-  void _onKey(String key) {
-    setState(() {
-      if (key == 'C') {
-        _amountStr = '0';
-        _operator = '';
-        _previousValue = '0';
-      } else if (key == '⌫') {
-        if (_amountStr.length > 1) {
-          _amountStr = _amountStr.substring(0, _amountStr.length - 1);
-        } else {
-          _amountStr = '0';
-        }
-      } else if (key == '.') {
-        if (!_amountStr.contains('.')) _amountStr += '.';
-      } else if (['+', '-', '×', '÷'].contains(key)) {
-        if (_operator.isNotEmpty && _amountStr != _previousValue) {
-          _calculate();
-        }
-        _operator = key;
-        _previousValue = _amountStr;
-        _amountStr = '0';
-      } else if (key == '=') {
-        _calculate();
-        _operator = '';
+  void _key(String k) => setState(() {
+    if (k == '⌫') {
+      _amtStr = _amtStr.length > 1 ? _amtStr.substring(0, _amtStr.length - 1) : '0';
+    } else if (k == '.') {
+      if (!_amtStr.contains('.')) _amtStr += '.';
+    } else {
+      if (_amtStr == '0') {
+        _amtStr = k;
+      } else if (_amtStr.contains('.')) {
+        if (_amtStr.split('.')[1].length < 2) _amtStr += k;
       } else {
-        if (_amountStr == '0') {
-          _amountStr = key;
-        } else {
-          // Limit decimal places to 2
-          if (_amountStr.contains('.')) {
-            final parts = _amountStr.split('.');
-            if (parts[1].length < 2) _amountStr += key;
-          } else {
-            _amountStr += key;
-          }
-        }
+        _amtStr += k;
       }
-    });
-  }
-
-  void _calculate() {
-    final current = double.tryParse(_amountStr) ?? 0;
-    final previous = double.tryParse(_previousValue) ?? 0;
-    double result = 0;
-
-    switch (_operator) {
-      case '+':
-        result = previous + current;
-        break;
-      case '-':
-        result = previous - current;
-        break;
-      case '×':
-        result = previous * current;
-        break;
-      case '÷':
-        result = current != 0 ? previous / current : 0;
-        break;
     }
-
-    // Format result: remove trailing zeros and unnecessary decimal point
-    final resultStr = result.toStringAsFixed(2);
-    _amountStr = double.parse(resultStr).toString();
-    if (_amountStr.endsWith('.0')) {
-      _amountStr = _amountStr.replaceAll('.0', '');
-    }
-    _previousValue = _amountStr;
-  }
+  });
 
   Future<void> _save() async {
-    if (_amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter an amount')),
-      );
-      return;
-    }
-    if (_selectedAccount == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select an account')),
-      );
-      return;
-    }
-    if (_type != RecordType.transfer && _selectedCategory == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a category')),
-      );
-      return;
-    }
-    if (_type == RecordType.transfer && _toAccount == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select destination account')),
-      );
-      return;
-    }
-
-    setState(() => _isSaving = true);
+    if (_amount <= 0) { _snack('Enter an amount'); return; }
+    if (_account == null) { _snack('Select an account'); return; }
+    if (_type != RecordType.transfer && _category == null) { _snack('Select a category'); return; }
+    if (_type == RecordType.transfer && _toAccount == null) { _snack('Select destination account'); return; }
+    setState(() => _saving = true);
     try {
-      final repo = ref.read(recordRepositoryProvider);
-      if (widget.record != null) {
-        // Update existing record
-        await repo.update(
-          id: widget.record!.id,
-          type: _type,
-          amount: _amount,
-          accountId: _selectedAccount!.id,
-          categoryId: _selectedCategory?.id,
-          toAccountId: _toAccount?.id,
-          notes: _notesController.text.isEmpty ? null : _notesController.text,
-          date: _date,
-        );
-      } else {
-        // Create new record
-        await repo.create(
-          type: _type,
-          amount: _amount,
-          accountId: _selectedAccount!.id,
-          categoryId: _selectedCategory?.id,
-          toAccountId: _toAccount?.id,
-          notes: _notesController.text.isEmpty ? null : _notesController.text,
-          date: _date,
-        );
-      }
-      ref.invalidate(monthRecordsProvider);
-      ref.invalidate(accountsProvider);
+      await ref.read(recordRepositoryProvider).create(
+        type: _type, amount: _amount, accountId: _account!.id,
+        categoryId: _category?.id, toAccountId: _toAccount?.id,
+        notes: _notesCtrl.text.isEmpty ? null : _notesCtrl.text, date: _date,
+      );
       if (mounted) Navigator.pop(context);
     } finally {
-      if (mounted) setState(() => _isSaving = false);
+      if (mounted) setState(() => _saving = false);
     }
   }
+
+  void _snack(String msg) => ScaffoldMessenger.of(context)
+      .showSnackBar(SnackBar(content: Text(msg)));
 
   @override
   Widget build(BuildContext context) {
+    final amtColor = _type == RecordType.expense ? AppColors.expense
+        : _type == RecordType.income ? AppColors.income : AppColors.transfer;
+
     return Scaffold(
       backgroundColor: AppColors.bgDark,
       appBar: AppBar(
         backgroundColor: AppColors.bgDark,
-        title: Text(
-          widget.record != null ? 'Edit Record' : 'Add Record',
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
-        ),
         leading: TextButton.icon(
           onPressed: () => Navigator.pop(context),
           icon: const Icon(Icons.close, color: AppColors.expense, size: 18),
-          label: const Text('CANCEL',
-              style: TextStyle(color: AppColors.expense, fontSize: 13)),
+          label: const Text('CANCEL', style: TextStyle(color: AppColors.expense, fontSize: 13)),
         ),
         leadingWidth: 110,
         actions: [
           TextButton.icon(
-            onPressed: _isSaving ? null : _save,
+            onPressed: _saving ? null : _save,
             icon: const Icon(Icons.check, color: AppColors.gold, size: 18),
-            label: const Text('SAVE',
-                style: TextStyle(color: AppColors.gold, fontSize: 13)),
+            label: const Text('SAVE', style: TextStyle(color: AppColors.gold, fontSize: 13)),
           ),
         ],
       ),
       body: Column(
         children: [
           // Type selector
-          _TypeSelector(
-            selected: _type,
-            onChanged: (t) => setState(() {
-              _type = t;
-              _selectedCategory = null;
-            }),
-          ),
-          const SizedBox(height: 12),
+          _TypeRow(selected: _type, onChanged: (t) => setState(() { _type = t; _category = null; })),
+          const SizedBox(height: 10),
 
-          // Account & Category buttons
+          // Account + Category/ToAccount
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _SelectorButton(
-                    icon: Icons.account_balance_wallet,
-                    label: _selectedAccount?.name ?? 'Account',
-                    color: _selectedAccount != null
-                        ? AppColors.gold
-                        : AppColors.textMuted,
-                    onTap: () => _showAccountPicker(context),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _type == RecordType.transfer
-                      ? _SelectorButton(
-                          icon: Icons.account_balance_wallet_outlined,
-                          label: _toAccount?.name ?? 'To Account',
-                          color: _toAccount != null
-                              ? AppColors.gold
-                              : AppColors.textMuted,
-                          onTap: () => _showAccountPicker(context, isTo: true),
-                        )
-                      : _SelectorButton(
-                          icon: Icons.local_offer,
-                          label: _selectedCategory?.name ?? 'Category',
-                          color: _selectedCategory != null
-                              ? AppColors.gold
-                              : AppColors.textMuted,
-                          onTap: () => _showCategoryPicker(context),
-                        ),
-                ),
-              ],
-            ),
+            child: Row(children: [
+              Expanded(child: _SelBtn(
+                icon: Icons.account_balance_wallet, label: _account?.name ?? 'Account',
+                active: _account != null, onTap: () => _pickAccount(false))),
+              const SizedBox(width: 12),
+              Expanded(child: _type == RecordType.transfer
+                ? _SelBtn(icon: Icons.account_balance_wallet_outlined,
+                    label: _toAccount?.name ?? 'To Account',
+                    active: _toAccount != null, onTap: () => _pickAccount(true))
+                : _SelBtn(icon: Icons.local_offer,
+                    label: _category?.name ?? 'Category',
+                    active: _category != null, onTap: _pickCategory)),
+            ]),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
-          // Notes field
+          // Notes
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: TextField(
-              controller: _notesController,
+              controller: _notesCtrl,
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: const InputDecoration(
                 hintText: 'Add notes',
-                prefixIcon:
-                    Icon(Icons.notes, color: AppColors.textMuted, size: 20),
-              ),
+                prefixIcon: Icon(Icons.notes, color: AppColors.textMuted, size: 20)),
               maxLines: 2,
             ),
           ),
           const Spacer(),
 
           // Amount display
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            alignment: Alignment.centerRight,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Text(
-                  '₹$_amountStr',
-                  style: TextStyle(
-                    color: _type == RecordType.expense
-                        ? AppColors.expense
-                        : _type == RecordType.income
-                            ? AppColors.income
-                            : AppColors.transfer,
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () => _onKey('⌫'),
-                  child: const Icon(Icons.backspace_outlined,
-                      color: AppColors.textSecondary, size: 24),
-                ),
+                Flexible(child: Text('₹$_amtStr',
+                    style: TextStyle(color: amtColor, fontSize: 36, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis)),
+                const SizedBox(width: 10),
+                GestureDetector(onTap: () => _key('⌫'),
+                    child: const Icon(Icons.backspace_outlined,
+                        color: AppColors.textSecondary, size: 24)),
               ],
             ),
           ),
 
           // Date bar
           GestureDetector(
-            onTap: () => _pickDate(context),
+            onTap: _pickDate,
             child: Container(
               color: AppColors.bgElevated,
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  Text(
-                    '${_date.day} ${_monthName(_date.month)} ${_date.year}',
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 14),
-                  ),
+                  Text('${_date.day} ${Formatters.monthName(_date.month)} ${_date.year}',
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
                   const Text('|', style: TextStyle(color: AppColors.textMuted)),
-                  Text(
-                    '${_date.hour.toString().padLeft(2, '0')}:${_date.minute.toString().padLeft(2, '0')}',
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 14),
-                  ),
+                  Text('${_date.hour.toString().padLeft(2,'0')}:${_date.minute.toString().padLeft(2,'0')}',
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
                 ],
               ),
             ),
           ),
 
           // Calculator
-          _Calculator(onKey: _onKey),
+          _Calculator(onKey: _key),
         ],
       ),
     );
   }
 
-  Future<void> _pickDate(BuildContext context) async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _date,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
+  Future<void> _pickDate() async {
+    final d = await showDatePicker(
+      context: context, initialDate: _date,
+      firstDate: DateTime(2000), lastDate: DateTime(2100),
       builder: (ctx, child) => Theme(
         data: ThemeData.dark().copyWith(
-          colorScheme: const ColorScheme.dark(primary: AppColors.gold),
-        ),
-        child: child!,
-      ),
+            colorScheme: const ColorScheme.dark(primary: AppColors.gold)),
+        child: child!),
     );
-    if (picked != null) {
-      if (!context.mounted) return;
-      final pickedTime = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.fromDateTime(_date),
-        builder: (ctx, child) => Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: const ColorScheme.dark(primary: AppColors.gold),
-          ),
-          child: child!,
-        ),
-      );
-      if (pickedTime != null) {
-        setState(() => _date = DateTime(
-              picked.year,
-              picked.month,
-              picked.day,
-              pickedTime.hour,
-              pickedTime.minute,
-            ));
-      } else {
-        setState(() => _date = picked);
-      }
-    }
+    if (d != null) setState(() => _date = d);
   }
 
-  Future<void> _showAccountPicker(BuildContext context,
-      {bool isTo = false}) async {
-    final accounts = await ref.read(accountRepositoryProvider).getAll();
-    if (!context.mounted) return;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.bgCard,
+  Future<void> _pickAccount(bool isTo) async {
+    final accounts = await AccountRepository().getAll();
+    if (!mounted) return;
+    final picked = await showModalBottomSheet<Account>(
+      context: context, backgroundColor: AppColors.bgCard,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => _AccountPickerSheet(
-        accounts: accounts,
-        onSelected: (acc) {
-          setState(() {
-            if (isTo) {
-              _toAccount = acc;
-            } else {
-              _selectedAccount = acc;
-            }
-          });
-        },
-      ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _AccountSheet(accounts: accounts),
     );
+    if (picked != null) setState(() => isTo ? _toAccount = picked : _account = picked);
   }
 
-  Future<void> _showCategoryPicker(BuildContext context) async {
-    final catRepo = ref.read(categoryRepositoryProvider);
-    final categories = _type == RecordType.income
-        ? await catRepo.getByType(CategoryType.income)
-        : await catRepo.getByType(CategoryType.expense);
-    if (!context.mounted) return;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.bgCard,
+  Future<void> _pickCategory() async {
+    final cats = _type == RecordType.income
+        ? await CategoryRepository().getByType(CategoryType.income)
+        : await CategoryRepository().getByType(CategoryType.expense);
+    if (!mounted) return;
+    final picked = await showModalBottomSheet<Category>(
+      context: context, backgroundColor: AppColors.bgCard,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => _CategoryPickerSheet(
-        categories: categories,
-        onSelected: (cat) => setState(() => _selectedCategory = cat),
-      ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _CategorySheet(categories: cats),
     );
-  }
-
-  String _monthName(int m) {
-    const names = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
-    ];
-    return names[m - 1];
+    if (picked != null) setState(() => _category = picked);
   }
 }
 
-class _TypeSelector extends StatelessWidget {
+// ─── Sub-widgets ──────────────────────────────────────────────────────────────
+
+class _TypeRow extends StatelessWidget {
   final RecordType selected;
   final ValueChanged<RecordType> onChanged;
-
-  const _TypeSelector({required this.selected, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _TypeTab('INCOME', RecordType.income, selected, onChanged),
-        Container(width: 1, height: 20, color: AppColors.textMuted),
-        _TypeTab('EXPENSE', RecordType.expense, selected, onChanged,
-            checked: true),
-        Container(width: 1, height: 20, color: AppColors.textMuted),
-        _TypeTab('TRANSFER', RecordType.transfer, selected, onChanged),
-      ],
-    );
-  }
-}
-
-class _TypeTab extends StatelessWidget {
-  final String label;
-  final RecordType type;
-  final RecordType selected;
-  final ValueChanged<RecordType> onChanged;
-  final bool checked;
-
-  const _TypeTab(this.label, this.type, this.selected, this.onChanged,
-      {this.checked = false});
+  const _TypeRow({required this.selected, required this.onChanged});
 
   @override
-  Widget build(BuildContext context) {
-    final isSelected = selected == type;
-    return GestureDetector(
-      onTap: () => onChanged(type),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        child: Row(
-          children: [
-            if (isSelected)
-              const Padding(
-                padding: EdgeInsets.only(right: 4),
-                child:
-                    Icon(Icons.check_circle, color: AppColors.gold, size: 16),
-              ),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? AppColors.gold : AppColors.textMuted,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                fontSize: 13,
-              ),
-            ),
-          ],
+  Widget build(BuildContext context) => Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: RecordType.values.map((t) {
+      final isSel = selected == t;
+      final label = t.name.toUpperCase();
+      return GestureDetector(
+        onTap: () => onChanged(t),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(children: [
+            if (isSel) const Padding(
+              padding: EdgeInsets.only(right: 4),
+              child: Icon(Icons.check_circle, color: AppColors.gold, size: 16)),
+            Text(label, style: TextStyle(
+              color: isSel ? AppColors.gold : AppColors.textMuted,
+              fontWeight: isSel ? FontWeight.w600 : FontWeight.normal,
+              fontSize: 13)),
+          ]),
         ),
-      ),
-    );
-  }
+      );
+    }).toList(),
+  );
 }
 
-class _SelectorButton extends StatelessWidget {
+class _SelBtn extends StatelessWidget {
   final IconData icon;
   final String label;
-  final Color color;
+  final bool active;
   final VoidCallback onTap;
-
-  const _SelectorButton({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-  });
+  const _SelBtn({required this.icon, required this.label, required this.active, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.bgElevated,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFF3A3A3A)),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(color: color, fontSize: 14),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.bgElevated,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: active ? AppColors.gold.withAlpha(100) : const Color(0xFF3A3A3A)),
       ),
-    );
-  }
+      child: Row(children: [
+        Icon(icon, color: active ? AppColors.gold : AppColors.textMuted, size: 18),
+        const SizedBox(width: 8),
+        Expanded(child: Text(label,
+            style: TextStyle(color: active ? AppColors.gold : AppColors.textMuted, fontSize: 13),
+            overflow: TextOverflow.ellipsis)),
+      ]),
+    ),
+  );
 }
 
 class _Calculator extends StatelessWidget {
   final ValueChanged<String> onKey;
-
   const _Calculator({required this.onKey});
 
   @override
   Widget build(BuildContext context) {
-    final keys = [
-      ['+', '7', '8', '9'],
-      ['-', '4', '5', '6'],
-      ['×', '1', '2', '3'],
-      ['÷', '0', '.', '='],
+    const rows = [
+      ['+','7','8','9'],
+      ['-','4','5','6'],
+      ['×','1','2','3'],
+      ['÷','0','.','='],
     ];
-
     return Container(
       color: AppColors.bgElevated,
       child: Column(
-        children: keys.map((row) {
-          return Row(
-            children: row.map((k) {
-              final isOp = ['+', '-', '×', '÷', '='].contains(k);
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () => onKey(k),
-                  child: Container(
-                    height: 60,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                          color: const Color(0xFF2A2A2A), width: 0.5),
-                      color: isOp ? AppColors.bgCard : AppColors.bgElevated,
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      k,
-                      style: TextStyle(
-                        color: isOp ? AppColors.gold : AppColors.textPrimary,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
+        children: rows.map((row) => Row(
+          children: row.map((k) {
+            final isOp = '+-×÷='.contains(k);
+            return Expanded(
+              child: GestureDetector(
+                onTap: () { if (!isOp) onKey(k); },
+                child: Container(
+                  height: 58,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xFF222222), width: 0.5),
+                    color: isOp ? AppColors.bgCard : AppColors.bgElevated),
+                  alignment: Alignment.center,
+                  child: Text(k, style: TextStyle(
+                    color: isOp ? AppColors.gold : AppColors.textPrimary,
+                    fontSize: 20, fontWeight: FontWeight.w500)),
                 ),
-              );
-            }).toList(),
-          );
-        }).toList(),
+              ),
+            );
+          }).toList(),
+        )).toList(),
       ),
     );
   }
 }
 
-class _AccountPickerSheet extends StatelessWidget {
+class _AccountSheet extends StatelessWidget {
   final List<Account> accounts;
-  final ValueChanged<Account> onSelected;
-
-  const _AccountPickerSheet({required this.accounts, required this.onSelected});
+  const _AccountSheet({required this.accounts});
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('Select an account',
-              style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600)),
-        ),
-        ...accounts.map((acc) => ListTile(
-              leading: CircleAvatar(
-                backgroundColor: acc.color.withAlpha(51),
-                child: Icon(CategoryIcons.accountIcon(acc.icon),
-                    color: acc.color, size: 20),
-              ),
-              title: Text(acc.name,
-                  style: const TextStyle(color: AppColors.textPrimary)),
-              trailing: Text(
-                '₹${acc.balance.toStringAsFixed(2)}',
-                style: TextStyle(
-                  color:
-                      acc.balance >= 0 ? AppColors.income : AppColors.expense,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                onSelected(acc);
-              },
-            )),
-        const SizedBox(height: 24),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      const Padding(padding: EdgeInsets.all(16),
+        child: Text('Select an account',
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600))),
+      ...accounts.map((a) => ListTile(
+        leading: CircleAvatar(
+          backgroundColor: a.color.withAlpha(40),
+          child: Icon(CategoryIcons.accountIcon(a.icon), color: a.color, size: 20)),
+        title: Text(a.name, style: const TextStyle(color: AppColors.textPrimary)),
+        trailing: Text('₹${a.balance.toStringAsFixed(2)}',
+            style: TextStyle(color: a.balance >= 0 ? AppColors.income : AppColors.expense,
+                fontWeight: FontWeight.w600)),
+        onTap: () => Navigator.pop(context, a),
+      )),
+      const SizedBox(height: 24),
+    ],
+  );
 }
 
-class _CategoryPickerSheet extends StatelessWidget {
+class _CategorySheet extends StatelessWidget {
   final List<Category> categories;
-  final ValueChanged<Category> onSelected;
-
-  const _CategoryPickerSheet(
-      {required this.categories, required this.onSelected});
+  const _CategorySheet({required this.categories});
 
   @override
-  Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.7,
-      maxChildSize: 0.9,
-      minChildSize: 0.4,
-      expand: false,
-      builder: (_, controller) => Column(
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text('Select a category',
-                style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600)),
+  Widget build(BuildContext context) => DraggableScrollableSheet(
+    initialChildSize: 0.7, maxChildSize: 0.9, minChildSize: 0.4, expand: false,
+    builder: (_, ctrl) => Column(
+      children: [
+        const Padding(padding: EdgeInsets.all(16),
+          child: Text('Select a category',
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600))),
+        Expanded(
+          child: GridView.builder(
+            controller: ctrl,
+            padding: const EdgeInsets.all(16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3, childAspectRatio: 0.9,
+                crossAxisSpacing: 12, mainAxisSpacing: 12),
+            itemCount: categories.length,
+            itemBuilder: (_, i) {
+              final c = categories[i];
+              return GestureDetector(
+                onTap: () => Navigator.pop(context, c),
+                child: Column(children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor: c.color.withAlpha(50),
+                    child: Icon(CategoryIcons.get(c.icon), color: c.color, size: 26)),
+                  const SizedBox(height: 6),
+                  Text(c.name, textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                ]),
+              );
+            },
           ),
-          Expanded(
-            child: GridView.builder(
-              controller: controller,
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                childAspectRatio: 0.9,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-              ),
-              itemCount: categories.length,
-              itemBuilder: (_, i) {
-                final cat = categories[i];
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.pop(context);
-                    onSelected(cat);
-                  },
-                  child: Column(
-                    children: [
-                      CircleAvatar(
-                        radius: 28,
-                        backgroundColor: cat.color.withAlpha(64),
-                        child: Icon(CategoryIcons.get(cat.icon),
-                            color: cat.color, size: 26),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        cat.name,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                            color: AppColors.textPrimary, fontSize: 12),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
+        ),
+      ],
+    ),
+  );
+}
+
+// Inline to avoid extra import
+class Formatters {
+  static String monthName(int m) {
+    const n = ['Jan','Feb','Mar','Apr','May','Jun',
+                'Jul','Aug','Sep','Oct','Nov','Dec'];
+    return n[m - 1];
   }
 }

@@ -2,10 +2,9 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Background layers
-  static const bgDark = Color(0xFF1E1E1E);
-  static const bgCard = Color(0xFF2A2A2A);
-  static const bgElevated = Color(0xFF333333);
+  static const bgDark = Color(0xFF1A1A1A);
+  static const bgCard = Color(0xFF252525);
+  static const bgElevated = Color(0xFF2E2E2E);
 
   // Accent - gold/olive
   static const gold = Color(0xFFD4A843);
@@ -20,20 +19,20 @@ class AppColors {
   // Text
   static const textPrimary = Color(0xFFEEEEEE);
   static const textSecondary = Color(0xFF9E9E9E);
-  static const textMuted = Color(0xFF616161);
+  static const textMuted = Color(0xFF555555);
 
   // Category Colors (matching app)
   static const List<Color> categoryColors = [
-    Color(0xFFE53935), // red
-    Color(0xFFD81B60), // pink
-    Color(0xFF8E24AA), // purple
-    Color(0xFF3949AB), // indigo
-    Color(0xFF1E88E5), // blue
-    Color(0xFF00897B), // teal
-    Color(0xFF43A047), // green
-    Color(0xFFF4511E), // deep orange
-    Color(0xFFEF8C00), // amber
-    Color(0xFF6D4C41), // brown
+    Color(0xFFE53935),
+    Color(0xFFD81B60),
+    Color(0xFF8E24AA),
+    Color(0xFF3949AB),
+    Color(0xFF1E88E5),
+    Color(0xFF00897B),
+    Color(0xFF43A047),
+    Color(0xFFF4511E),
+    Color(0xFFEF8C00),
+    Color(0xFF6D4C41),
   ];
 }
 
@@ -54,12 +53,6 @@ class AppTheme {
         foregroundColor: AppColors.gold,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: TextStyle(
-          color: AppColors.gold,
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
-        ),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.bgCard,
@@ -73,7 +66,7 @@ class AppTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: Color(0xFF3A3A3A), width: 1),
+          side: const BorderSide(color: Color(0xFF3A3A3A)),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -103,16 +96,6 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
           textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
-      ),
-      textTheme: const TextTheme(
-        headlineLarge: TextStyle(
-            color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-        headlineMedium: TextStyle(
-            color: AppColors.textPrimary, fontWeight: FontWeight.w600),
-        bodyLarge: TextStyle(color: AppColors.textPrimary),
-        bodyMedium: TextStyle(color: AppColors.textSecondary),
-        labelLarge: TextStyle(
-            color: AppColors.textPrimary, fontWeight: FontWeight.w500),
       ),
     );
   }
