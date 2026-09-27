@@ -5,18 +5,21 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/utils/formatters.dart';
 import '../records/data/record_model.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:convert';
+import 'dart:typed_data';
 
 /// Export format TYPE strings — matches what the Excel importer reads
 class _TypeLabel {
-  static const expense  = '(-) Expense';
-  static const income   = '(+) Income';
+  static const expense = '(-) Expense';
+  static const income = '(+) Income';
   static const transfer = '(*) Transfer';
 
   static String from(RecordType t) => switch (t) {
-    RecordType.expense  => expense,
-    RecordType.income   => income,
-    RecordType.transfer => transfer,
-  };
+        RecordType.expense => expense,
+        RecordType.income => income,
+        RecordType.transfer => transfer,
+      };
 }
 
 class ExportService {
@@ -38,7 +41,8 @@ class ExportService {
     // Header row — exact columns matching the uploaded Excel
     final headers = ['TIME', 'TYPE', 'AMOUNT', 'CATEGORY', 'ACCOUNT', 'NOTES'];
     for (var i = 0; i < headers.length; i++) {
-      final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0));
+      final cell =
+          sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0));
       cell.value = TextCellValue(headers[i]);
       cell.cellStyle = hStyle;
     }
@@ -50,24 +54,29 @@ class ExportService {
     sheet.setColumnWidth(5, 35);
 
     for (var i = 0; i < records.length; i++) {
-      final r      = records[i];
+      final r = records[i];
       final rowIdx = i + 1;
       final isEven = rowIdx % 2 == 0;
 
       final rowStyle = CellStyle(
-        backgroundColorHex: ExcelColor.fromHexString(isEven ? '#2A2A2A' : '#1E1E1E'),
+        backgroundColorHex:
+            ExcelColor.fromHexString(isEven ? '#2A2A2A' : '#1E1E1E'),
         fontColorHex: ExcelColor.fromHexString('#EEEEEE'),
       );
       final amtStyle = CellStyle(
         bold: true,
-        backgroundColorHex: ExcelColor.fromHexString(isEven ? '#2A2A2A' : '#1E1E1E'),
-        fontColorHex: ExcelColor.fromHexString(
-          r.type == RecordType.expense ? '#E57373'
-          : r.type == RecordType.income ? '#81C784' : '#64B5F6'),
+        backgroundColorHex:
+            ExcelColor.fromHexString(isEven ? '#2A2A2A' : '#1E1E1E'),
+        fontColorHex: ExcelColor.fromHexString(r.type == RecordType.expense
+            ? '#E57373'
+            : r.type == RecordType.income
+                ? '#81C784'
+                : '#64B5F6'),
       );
 
       void setCell(int col, CellValue val, [CellStyle? style]) {
-        final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIdx));
+        final cell = sheet.cell(
+            CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIdx));
         cell.value = val;
         cell.cellStyle = style ?? rowStyle;
       }
@@ -78,9 +87,8 @@ class ExportService {
       setCell(2, DoubleCellValue(r.amount), amtStyle);
 
       // CATEGORY: '-' for transfers (matches uploaded Excel)
-      final catDisplay = r.type == RecordType.transfer
-          ? '-'
-          : (r.categoryName ?? '-');
+      final catDisplay =
+          r.type == RecordType.transfer ? '-' : (r.categoryName ?? '-');
       setCell(3, TextCellValue(catDisplay));
 
       // ACCOUNT: 'from->to' for transfers
@@ -94,18 +102,31 @@ class ExportService {
     final bytes = excel.encode();
     if (bytes == null) return;
 
-    final dir  = await getTemporaryDirectory();
-    final ts   = DateTime.now();
-    final name = 'KharchaPani_${ts.year}${_pad(ts.month)}${_pad(ts.day)}'
-        '_${_pad(ts.hour)}${_pad(ts.minute)}.xlsx';
-    final file = File('${dir.path}/$name');
-    await file.writeAsBytes(bytes);
+    final ts = DateTime.now();
+    final name =
+        'KharchaPani_${ts.year}${_pad(ts.month)}${_pad(ts.day)}_${_pad(ts.hour)}${_pad(ts.minute)}.xlsx';
 
-    await Share.shareXFiles([XFile(file.path)],
-      subject: 'KharchaPani Export',
-      text: 'Exported ${records.length} records');
+    // Convert to Uint8List for the file picker
+    final uint8List = Uint8List.fromList(bytes);
+
+    final String? savePath = await FilePicker.platform.saveFile(
+      dialogTitle: 'Save Excel Export',
+      fileName: name,
+      type: FileType.custom,
+      allowedExtensions: ['xlsx'],
+      bytes: uint8List, // <-- This is required for Android/iOS to save the file
+    );
+
+    // Desktop fallback: On Android/iOS, the picker handles the save via the bytes parameter.
+    // On Desktop, we still need to write the file manually to the returned path.
+    if (savePath != null) {
+      try {
+        await File(savePath).writeAsBytes(uint8List);
+      } catch (_) {
+        // Ignore if the mobile OS already locked and handled the file save natively.
+      }
+    }
   }
-
   // ─── CSV Export ─────────────────────────────────────────────────────────────
 
   Future<void> exportCsv(List<FinancialRecord> records) async {
@@ -115,8 +136,8 @@ class ExportService {
     for (final r in records) {
       final time = Formatters.excelDateTime(r.date);
       final type = _TypeLabel.from(r.type);
-      final cat  = r.type == RecordType.transfer ? '-' : (r.categoryName ?? '-');
-      final acc  = r.type == RecordType.transfer
+      final cat = r.type == RecordType.transfer ? '-' : (r.categoryName ?? '-');
+      final acc = r.type == RecordType.transfer
           ? '${r.accountName ?? "?"}->${r.toAccountName ?? "?"}'
           : (r.accountName ?? '-');
 
@@ -124,18 +145,31 @@ class ExportService {
           '${_q(cat)},${_q(acc)},${_q(r.notes ?? '')}');
     }
 
-    final dir  = await getTemporaryDirectory();
-    final ts   = DateTime.now();
-    final name = 'KharchaPani_${ts.year}${_pad(ts.month)}${_pad(ts.day)}'
-        '_${_pad(ts.hour)}${_pad(ts.minute)}.csv';
-    final file = File('${dir.path}/$name');
-    await file.writeAsString(buf.toString());
+    final ts = DateTime.now();
+    final name =
+        'KharchaPani_${ts.year}${_pad(ts.month)}${_pad(ts.day)}_${_pad(ts.hour)}${_pad(ts.minute)}.csv';
 
-    await Share.shareXFiles([XFile(file.path)],
-      subject: 'KharchaPani CSV Export',
-      text: 'Exported ${records.length} records');
+    // Convert the CSV String into Uint8List bytes
+    final csvString = buf.toString();
+    final uint8List = Uint8List.fromList(utf8.encode(csvString));
+
+    final String? savePath = await FilePicker.platform.saveFile(
+      dialogTitle: 'Save CSV Export',
+      fileName: name,
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+      bytes: uint8List, // <-- This is required for Android/iOS to save the file
+    );
+
+    if (savePath != null) {
+      try {
+        await File(savePath).writeAsBytes(uint8List);
+      } catch (_) {
+        // Ignore if the mobile OS already locked and handled the file save natively.
+      }
+    }
   }
 
   String _q(String s) => '"${s.replaceAll('"', '""')}"';
-  String _pad(int n)  => n.toString().padLeft(2, '0');
+  String _pad(int n) => n.toString().padLeft(2, '0');
 }
