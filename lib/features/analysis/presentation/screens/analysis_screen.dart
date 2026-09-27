@@ -24,7 +24,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
         : ref.watch(incomeBreakdownProvider);
 
     final catList = breakdown.values.toList();
-    final total   = catList.fold(0.0, (s, c) => s + c.amount);
+    final total = catList.fold(0.0, (s, c) => s + c.amount);
 
     return Scaffold(
       body: Column(
@@ -42,7 +42,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                       isExpense: _showExpense,
                       onToggle: (v) => setState(() {
                         _showExpense = v;
-                        _touchedIdx  = null;
+                        _touchedIdx = null;
                       }),
                     ),
                   ),
@@ -69,12 +69,12 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
 
                     // Category rows
                     ...catList.asMap().entries.map((e) => _CategoryRow(
-                      cat: e.value,
-                      pct: total > 0 ? e.value.amount / total * 100 : 0,
-                      isHighlighted: _touchedIdx == e.key,
-                      onTap: () => setState(() =>
-                          _touchedIdx = _touchedIdx == e.key ? null : e.key),
-                    )),
+                          cat: e.value,
+                          pct: total > 0 ? e.value.amount / total * 100 : 0,
+                          isHighlighted: _touchedIdx == e.key,
+                          onTap: () => setState(() => _touchedIdx =
+                              _touchedIdx == e.key ? null : e.key),
+                        )),
                   ],
                 ],
               ),
@@ -95,8 +95,10 @@ class _DonutChart extends StatelessWidget {
   final ValueChanged<int?> onTouch;
 
   const _DonutChart({
-    required this.catList, required this.total,
-    required this.touchedIdx, required this.onTouch,
+    required this.catList,
+    required this.total,
+    required this.touchedIdx,
+    required this.onTouch,
   });
 
   @override
@@ -115,7 +117,8 @@ class _DonutChart extends StatelessWidget {
                 touchCallback: (event, response) {
                   if (event is FlTapUpEvent) {
                     final idx = response?.touchedSection?.touchedSectionIndex;
-                    onTouch(idx);
+                    // Prevent -1 from being passed to the state
+                    onTouch((idx != null && idx >= 0) ? idx : null);
                   }
                 },
               ),
@@ -131,7 +134,9 @@ class _DonutChart extends StatelessWidget {
             ),
           ),
           // Center label: show tapped category or total
-          if (touchedIdx != null && touchedIdx! < catList.length)
+          if (touchedIdx != null &&
+              touchedIdx! >= 0 &&
+              touchedIdx! < catList.length)
             _CenterLabel(
               label: catList[touchedIdx!].name,
               amount: catList[touchedIdx!].amount,
@@ -139,7 +144,10 @@ class _DonutChart extends StatelessWidget {
               color: Color(catList[touchedIdx!].color),
             )
           else
-            _CenterLabel(label: 'Total', amount: total, total: total,
+            _CenterLabel(
+                label: 'Total',
+                amount: total,
+                total: total,
                 color: AppColors.textSecondary),
         ],
       ),
@@ -153,8 +161,10 @@ class _CenterLabel extends StatelessWidget {
   final Color color;
 
   const _CenterLabel({
-    required this.label, required this.amount,
-    required this.total, required this.color,
+    required this.label,
+    required this.amount,
+    required this.total,
+    required this.color,
   });
 
   @override
@@ -164,17 +174,21 @@ class _CenterLabel extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(label,
-            style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
+            style: TextStyle(
+                color: color, fontSize: 12, fontWeight: FontWeight.w600),
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis),
         const SizedBox(height: 2),
         Text('₹${amount.toStringAsFixed(0)}',
-            style: const TextStyle(color: AppColors.textPrimary,
-                fontSize: 15, fontWeight: FontWeight.bold)),
+            style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.bold)),
         if (total != amount)
           Text('${pct.toStringAsFixed(1)}%',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 11)),
       ],
     );
   }
@@ -194,21 +208,25 @@ class _ChartLegend extends StatelessWidget {
         spacing: 12,
         runSpacing: 6,
         alignment: WrapAlignment.center,
-        children: catList.map((c) => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 10, height: 10,
-              decoration: BoxDecoration(
-                color: Color(c.color),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Text(c.name,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-          ],
-        )).toList(),
+        children: catList
+            .map((c) => Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: Color(c.color),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(c.name,
+                        style: const TextStyle(
+                            color: AppColors.textSecondary, fontSize: 11)),
+                  ],
+                ))
+            .toList(),
       ),
     );
   }
@@ -223,8 +241,10 @@ class _CategoryRow extends StatelessWidget {
   final VoidCallback onTap;
 
   const _CategoryRow({
-    required this.cat, required this.pct,
-    required this.isHighlighted, required this.onTap,
+    required this.cat,
+    required this.pct,
+    required this.isHighlighted,
+    required this.onTap,
   });
 
   @override
@@ -233,7 +253,8 @@ class _CategoryRow extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        color: isHighlighted ? Color(cat.color).withAlpha(20) : Colors.transparent,
+        color:
+            isHighlighted ? Color(cat.color).withAlpha(20) : Colors.transparent,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
           children: [
@@ -254,14 +275,16 @@ class _CategoryRow extends StatelessWidget {
                       Flexible(
                         child: Text(cat.name,
                             style: TextStyle(
-                              color: isHighlighted
-                                  ? Color(cat.color) : AppColors.textPrimary,
-                              fontWeight: FontWeight.w500),
+                                color: isHighlighted
+                                    ? Color(cat.color)
+                                    : AppColors.textPrimary,
+                                fontWeight: FontWeight.w500),
                             overflow: TextOverflow.ellipsis),
                       ),
                       Text('-₹${cat.amount.toStringAsFixed(2)}',
                           style: const TextStyle(
-                              color: AppColors.expense, fontWeight: FontWeight.w600)),
+                              color: AppColors.expense,
+                              fontWeight: FontWeight.w600)),
                     ],
                   ),
                   const SizedBox(height: 5),
@@ -317,7 +340,9 @@ class _OverviewToggle extends StatelessWidget {
             const SizedBox(width: 8),
             Text(isExpense ? 'EXPENSE OVERVIEW' : 'INCOME OVERVIEW',
                 style: const TextStyle(
-                    color: AppColors.gold, fontWeight: FontWeight.w600, fontSize: 13)),
+                    color: AppColors.gold,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13)),
           ],
         ),
       ),
@@ -335,8 +360,8 @@ class _EmptyChart extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 60),
       child: Column(
         children: [
-          Icon(Icons.pie_chart_outline, size: 56,
-              color: AppColors.textMuted.withAlpha(80)),
+          Icon(Icons.pie_chart_outline,
+              size: 56, color: AppColors.textMuted.withAlpha(80)),
           const SizedBox(height: 12),
           Text('No $label data this month',
               style: const TextStyle(color: AppColors.textMuted)),

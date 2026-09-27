@@ -150,6 +150,14 @@ class _RecordTile extends StatelessWidget {
         ref.invalidate(accountsProvider);
       },
       child: ListTile(
+        onTap: () async {
+          await Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => AddRecordScreen(recordToEdit: record)));
+          ref.invalidate(monthRecordsProvider);
+          ref.invalidate(accountsProvider);
+        },
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: isTransfer
             ? _circle(Icons.swap_horiz, AppColors.transfer)
